@@ -1,0 +1,6 @@
+# Node.js 依赖目录
+client/node_modules
+server/node_modules
+# 环境配置文件
+client/.env
+server/.env
