@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
 const Web3 = require('web3');
+const cors = require('cors');
 
 // Load environment variables
 dotenv.config();
@@ -13,6 +14,11 @@ mongoose.set('strictQuery', false);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+app.use(cors({
+    origin: 'http://localhost:3000',
+    credentials: true
+}));
 
 // Middleware
 app.use(express.json());
