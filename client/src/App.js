@@ -63,7 +63,6 @@ function App() {
 
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const [botName, setBotName] = useState('');
     const [walletName, setWalletName] = useState('');
     const [privateKey, setPrivateKey] = useState('');
     const [tradePair, setTradePair] = useState('');
@@ -79,7 +78,7 @@ function App() {
     const register = async (e) => {
         e.preventDefault();
         try {
-            const response = await api.post('/register', { username, password, botName });
+            const response = await api.post('/register', { username, password });
             alert(response.data.message);
         } catch (error) {
             alert('Registration failed: ' + (error.response?.data?.error || error.message));
@@ -169,7 +168,6 @@ function App() {
                 <form onSubmit={register}>
                     <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
                     <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                    <input type="text" placeholder="Bot Name" value={botName} onChange={(e) => setBotName(e.target.value)} />
                     <button type="submit">Register</button>
                 </form>
                 <form onSubmit={login}>

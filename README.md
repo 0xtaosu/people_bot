@@ -1,7 +1,7 @@
 # People Bot Server
 
 ## 项目概述
-一键创建的 Telegram (TG) 交易机器人，用户可以通过该平台创建自己的交易机器人，定制品牌名称，并享有基本的交易功能。MVP版本支持以太坊（ETH）区块链，并提供快速买卖的核心功能。
+一键创建的 Telegram (TG) 交易机器人平台，用户可以通过该平台管理自己的交易钱包，并享有基本的交易功能。MVP版本支持以太坊（ETH）区块链，并提供快速买卖的核心功能。
 
 ### 项目架构
 1. 后端管理系统
@@ -30,7 +30,6 @@
    - 用户ID
    - 用户名
    - 密码（加密存储）
-   - 机器人名称
    - 钱包列表（id, 名称, 类型, 地址）
 
 2. 交易表 (Transactions)
@@ -42,106 +41,7 @@
    - 交易哈希
    - 交易状态
 
-## 代码结构
-```
-people_bot/
-│
-├── server/
-│   ├── node_modules/
-│   ├── .env
-│   ├── .gitignore
-│   ├── package.json
-│   ├── README.md
-│   └── server.js
-│
-└── client/
-    ├── public/
-    │   └── index.html
-    ├── src/
-    │   ├── App.js
-    │   └── index.js
-    ├── package.json
-    └── README.md
-```
-
-## 使用方法
-
-### 数据库安装和配置
-
-本项目使用 MongoDB 作为数据库。请按照以下步骤安装和配置 MongoDB：
-
-1. 安装 MongoDB：
-   - 访问 [MongoDB 官方网站](https://www.mongodb.com/try/download/community) 下载并安装适合您操作系统的 MongoDB Community Server 版本。
-   - 按照安装向导完成安装过程。
-
-2. 启动 MongoDB 服务：
-   - 在 Windows 上，MongoDB 通常会作为服务自动启动。
-   - 在 macOS 或 Linux 上，您可能需要手动启动服务：
-     ```
-     sudo systemctl start mongod
-     ```
-
-3. 创建数据库：
-   - 打开终端或命令提示符，运行 MongoDB shell：
-     ```
-     mongo
-     ```
-   - 创建新的数据库：
-     ```
-     use people_bot_db
-     ```
-
-4. 配置连接：
-   - 在项目的 `.env` 文件中，添加或修改 MongoDB 连接字符串：
-     ```
-     MONGODB_URI=mongodb://localhost:27017/people_bot_db
-     ```
-
-5. 安装依赖：
-   - 在项目根目录下运行以下命令安装所需依赖：
-     ```
-     npm install mongoose
-     ```
-
-### 服务器端
-
-1. 进入服务器目录：
-   ```
-   cd people_bot/server
-   ```
-
-2. 安装依赖：
-   ```
-   npm install
-   ```
-
-3. 启动服务器：
-   ```
-   npm run start
-   ```
-
-   服务器将在指定端口（默认5000或5001）上运行。
-
-### 客户端
-
-1. 进入客户端目录：
-   ```
-   cd people_bot/client
-   ```
-
-2. 安装依赖：
-   ```
-   npm install
-   ```
-
-3. 启动开发服务器：
-   ```
-   npm start
-   ```
-
-   React 应用将在开发模式下运行，通常在 http://localhost:3000 上可访问。
-
-## API 文档
+...(about 170 lines omitted)...
 
 ### 用户认证
 
@@ -152,8 +52,7 @@ people_bot/
   ```json
   {
     "username": "用户名",
-    "password": "密码",
-    "botName": "机器人名称"
+    "password": "密码"
   }
   ```
 - **成功响应**: 
@@ -270,3 +169,4 @@ people_bot/
 ## 许可证
 
 本项目采用 MIT 许可证。详情请见 [LICENSE](./LICENSE) 文件。
+````

@@ -17,7 +17,6 @@ const ALT_PORT = 5001;
 const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    botName: { type: String },
     wallets: [{
         id: { type: String, required: true },
         name: { type: String, required: true },
@@ -37,7 +36,6 @@ const TransactionSchema = new mongoose.Schema({
     state: { type: String },
 });
 
-
 UserSchema.pre('save', async function (next) {
     if (this.isModified('password')) {
         this.password = await bcrypt.hash(this.password, 10);
@@ -47,7 +45,6 @@ UserSchema.pre('save', async function (next) {
 
 const User = mongoose.model('User', UserSchema);
 const Transaction = mongoose.model('Transaction', TransactionSchema);
-
 
 // Middleware
 app.use(cors({
@@ -134,8 +131,8 @@ async function updateUserWallets(userId) {
 // Register
 app.post('/api/register', async (req, res) => {
     try {
-        const { username, password, botName } = req.body;
-        const user = new User({ username, password, botName });
+        const { username, password } = req.body;
+        const user = new User({ username, password });
         await user.save();
         res.status(201).send({ message: 'User registered successfully' });
     } catch (error) {
@@ -278,7 +275,6 @@ app.get('/api/transactions', auth, async (req, res) => {
         res.status(500).send({ error: 'Failed to fetch transactions: ' + error.message });
     }
 });
-
 
 if (require.main === module) {
     app.listen(PORT, () => {

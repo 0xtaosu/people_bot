@@ -19,8 +19,7 @@ describe('Authentication', () => {
             .post('/api/register')
             .send({
                 username: 'testuser',
-                password: 'testpassword',
-                botName: 'TestBot'
+                password: 'testpassword'
             });
         expect(res.statusCode).toEqual(201);
         expect(res.body).toHaveProperty('message', 'User registered successfully');
