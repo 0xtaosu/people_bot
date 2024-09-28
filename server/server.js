@@ -9,13 +9,15 @@ const Web3 = require('web3');
 // Load environment variables
 dotenv.config();
 
+mongoose.set('strictQuery', false);
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(express.json());
 app.use(session({
-    secret: process.env.SESSION_SECRET,
+    secret: process.env.SESSION_SECRET || 'your_fallback_secret',
     resave: false,
     saveUninitialized: true,
     cookie: { secure: process.env.NODE_ENV === 'production' }
@@ -154,7 +156,19 @@ app.get('/api/balance/:address', auth, async (req, res) => {
     }
 });
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    }).on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.log(`Port ${PORT} is already in use. Trying port ${PORT + 1}`);
+            app.listen(PORT + 1, () => {
+                console.log(`Server is running on port ${PORT + 1}`);
+            });
+        } else {
+            console.error('An error occurred:', err);
+        }
+    });
+}
+
+module.exports = app;
