@@ -4,23 +4,57 @@ const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
-const Web3 = require('web3');
 const cors = require('cors');
 
-// Load environment variables
 dotenv.config();
-
 mongoose.set('strictQuery', false);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const ALT_PORT = 5001;
 
+// User Model
+const UserSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    botName: { type: String },
+    wallets: [{
+        id: { type: String, required: true },
+        name: { type: String, required: true },
+        type: { type: String, required: true },
+        address: { type: String, required: true }
+    }]
+});
+
+// Transaction Model
+const TransactionSchema = new mongoose.Schema({
+    walletId: { type: String, required: true },
+    pair: { type: String, required: true },
+    type: { type: String, required: true },
+    tradeId: { type: String, required: true },
+    txPriceUsd: { type: String },
+    swapHash: { type: String },
+    state: { type: String },
+});
+
+
+UserSchema.pre('save', async function (next) {
+    if (this.isModified('password')) {
+        this.password = await bcrypt.hash(this.password, 10);
+    }
+    next();
+});
+
+const User = mongoose.model('User', UserSchema);
+const Transaction = mongoose.model('Transaction', TransactionSchema);
+
+
+// Middleware
 app.use(cors({
     origin: 'http://localhost:3000',
     credentials: true
 }));
 
-// Middleware
 app.use(express.json());
 app.use(session({
     secret: process.env.SESSION_SECRET || 'your_fallback_secret',
@@ -37,30 +71,6 @@ mongoose.connect(process.env.MONGODB_URI, {
     .then(() => console.log('Connected to MongoDB'))
     .catch((err) => console.error('MongoDB connection error:', err));
 
-// User Model
-const UserSchema = new mongoose.Schema({
-    username: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-});
-
-UserSchema.pre('save', async function (next) {
-    if (this.isModified('password')) {
-        this.password = await bcrypt.hash(this.password, 10);
-    }
-    next();
-});
-
-const User = mongoose.model('User', UserSchema);
-
-// Bot Model
-const BotSchema = new mongoose.Schema({
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    name: { type: String, required: true },
-    config: { type: Object, required: true },
-});
-
-const Bot = mongoose.model('Bot', BotSchema);
-
 // Authentication Middleware
 const auth = (req, res, next) => {
     if (req.session.userId) {
@@ -70,12 +80,62 @@ const auth = (req, res, next) => {
     }
 };
 
+// Helper function to get wallet info from dbotx
+async function getWalletInfo() {
+    try {
+        const response = await axios.get('https://api-bot-v1.dbotx.com/account/wallets?type=evm', {
+            headers: { 'X-API-KEY': process.env.DBOTX_API_KEY }
+        });
+        console.log('Wallet info response:', JSON.stringify(response.data, null, 2));
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching wallet info:', error);
+        throw error;
+    }
+}
+
+// Helper function to update user's wallets in the database
+async function updateUserWallets(userId) {
+    try {
+        const walletInfo = await getWalletInfo();
+        console.log('Wallet info in updateUserWallets:', JSON.stringify(walletInfo, null, 2));
+
+        let wallets = [];
+        if (walletInfo.res && Array.isArray(walletInfo.res)) {
+            wallets = walletInfo.res;
+        } else {
+            console.error('Unexpected wallet info structure:', typeof walletInfo);
+            return [];
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            console.error('User not found:', userId);
+            return [];
+        }
+
+        user.wallets = wallets.map(wallet => ({
+            id: wallet.id,
+            name: wallet.name || `Wallet ${wallet.address.slice(0, 6)}`,
+            type: wallet.type,
+            address: wallet.address
+        }));
+        await user.save();
+        console.log('Updated user wallets:', JSON.stringify(user.wallets, null, 2));
+        return user.wallets;
+    } catch (error) {
+        console.error('Error updating user wallets:', error);
+        throw error;
+    }
+}
+
 // Routes
 
 // Register
 app.post('/api/register', async (req, res) => {
     try {
-        const user = new User(req.body);
+        const { username, password, botName } = req.body;
+        const user = new User({ username, password, botName });
         await user.save();
         res.status(201).send({ message: 'User registered successfully' });
     } catch (error) {
@@ -107,69 +167,127 @@ app.post('/api/logout', (req, res) => {
     });
 });
 
-// Create Bot
-app.post('/api/bots', auth, async (req, res) => {
+// Import Wallet
+app.post('/api/wallets/import', auth, async (req, res) => {
     try {
-        const bot = new Bot({
-            userId: req.session.userId,
-            name: req.body.name,
-            config: req.body.config
+        await axios.post('https://api-bot-v1.dbotx.com/account/wallets', {
+            type: 'evm',
+            privateKeys: [req.body.privateKey]
+        }, {
+            headers: { 'X-API-KEY': process.env.DBOTX_API_KEY }
         });
-        await bot.save();
-        res.status(201).send(bot);
-    } catch (error) {
-        res.status(400).send(error);
-    }
-});
-
-// Get Bots
-app.get('/api/bots', auth, async (req, res) => {
-    try {
-        const bots = await Bot.find({ userId: req.session.userId });
-        res.send(bots);
+        const updatedWallets = await updateUserWallets(req.session.userId);
+        res.status(201).send(updatedWallets);
     } catch (error) {
         res.status(500).send(error);
     }
 });
 
-// Execute Trade
+// Delete Wallet
+app.delete('/api/wallets/:id', auth, async (req, res) => {
+    try {
+        await axios.delete(`https://api-bot-v1.dbotx.com/account/wallet/${req.params.id}`, {
+            headers: { 'X-API-KEY': process.env.DBOTX_API_KEY }
+        });
+        const updatedWallets = await updateUserWallets(req.session.userId);
+        res.send(updatedWallets);
+    } catch (error) {
+        res.status(500).send(error);
+    }
+});
+
+// Get Wallets
+app.get('/api/wallets', auth, async (req, res) => {
+    try {
+        const updatedWallets = await updateUserWallets(req.session.userId);
+        res.send(updatedWallets);
+    } catch (error) {
+        res.status(500).send(error);
+    }
+});
+
+// Execute Trade (Fast Buy/Sell)
 app.post('/api/trade', auth, async (req, res) => {
     try {
-        const { pair, amount, type } = req.body;
-        const response = await axios.post('https://api.dbotx.com/trade', {
+        const { walletId, pair, type, amountOrPercent, maxSlippage } = req.body;
+        const response = await axios.post('https://api-bot-v1.dbotx.com/automation/swap_order', {
+            chain: 'ethereum',
+            walletId,
             pair,
-            amount,
-            type
+            type,
+            amountOrPercent,
+            maxSlippage
         }, {
-            headers: {
-                'Authorization': `Bearer ${process.env.DBOTX_API_KEY}`
-            }
+            headers: { 'X-API-KEY': process.env.DBOTX_API_KEY }
         });
-        res.send(response.data);
+
+        if (response.data.err === false && response.data.res && response.data.res.id) {
+            const tradeId = response.data.res.id;
+
+            // 创建新的交易记录
+            const transaction = new Transaction({
+                walletId,
+                pair,
+                type,
+                tradeId
+            });
+            await transaction.save();
+
+            // 获取交易详细信息
+            await updateTransactionDetails(tradeId);
+
+            res.send({ message: 'Trade executed successfully', tradeId });
+        } else {
+            throw new Error('Trade execution failed');
+        }
     } catch (error) {
-        res.status(500).send(error);
+        res.status(500).send({ error: 'Trade execution failed: ' + error.message });
     }
 });
 
-// Get ETH Balance
-app.get('/api/balance/:address', auth, async (req, res) => {
+// Update transaction details
+async function updateTransactionDetails(tradeId) {
     try {
-        const web3 = new Web3(`https://mainnet.infura.io/v3/${process.env.INFURA_PROJECT_ID}`);
-        const balance = await web3.eth.getBalance(req.params.address);
-        res.send({ balance: web3.utils.fromWei(balance, 'ether') });
+        const response = await axios.get(`https://api-bot-v1.dbotx.com/automation/swap_orders?ids=${tradeId}`, {
+            headers: { 'X-API-KEY': process.env.DBOTX_API_KEY }
+        });
+
+        if (response.data.err === false && response.data.res && response.data.res.length > 0) {
+            const orderInfo = response.data.res[0];
+            await Transaction.findOneAndUpdate(
+                { tradeId },
+                {
+                    txPriceUsd: orderInfo.txPriceUsd,
+                    swapHash: orderInfo.swapHash,
+                    state: orderInfo.state
+                },
+                { new: true }
+            );
+        }
     } catch (error) {
-        res.status(500).send(error);
+        console.error('Error updating transaction details:', error);
+    }
+}
+
+// get transactions
+app.get('/api/transactions', auth, async (req, res) => {
+    try {
+        const transactions = await Transaction.find({ walletId: req.query.walletId });
+        res.send(transactions);
+    } catch (error) {
+        res.status(500).send({ error: 'Failed to fetch transactions: ' + error.message });
     }
 });
+
 
 if (require.main === module) {
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
     }).on('error', (err) => {
         if (err.code === 'EADDRINUSE') {
-            console.log(`Port ${PORT} is already in use. Trying port ${PORT + 1}`);
-            app.listen(PORT + 1, () => {
-                console.log(`Server is running on port ${PORT + 1}`);
+            console.log(`Port ${PORT} is already in use. Trying port ${ALT_PORT}`);
+            app.listen(ALT_PORT, () => {
+                console.log(`Server is running on port ${ALT_PORT}`);
             });
         } else {
             console.error('An error occurred:', err);

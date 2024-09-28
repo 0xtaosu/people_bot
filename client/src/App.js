@@ -6,51 +6,83 @@ const api = axios.create({
     withCredentials: true
 });
 
+function TransactionHistory({ walletId }) {
+    const [transactions, setTransactions] = useState([]);
+
+    useEffect(() => {
+        if (walletId) {
+            fetchTransactions(walletId);
+        }
+    }, [walletId]);
+
+    const fetchTransactions = async (walletId) => {
+        try {
+            const response = await api.get(`/transactions?walletId=${walletId}`);
+            setTransactions(response.data);
+        } catch (error) {
+            console.error('Failed to fetch transactions:', error);
+        }
+    };
+
+    return (
+        <div>
+            <h3>Transaction History</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Trade ID</th>
+                        <th>Pair</th>
+                        <th>Type</th>
+                        <th>Price (USD)</th>
+                        <th>Swap Hash</th>
+                        <th>State</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {transactions.map(tx => (
+                        <tr key={tx.tradeId}>
+                            <td>{tx.tradeId}</td>
+                            <td>{tx.pair}</td>
+                            <td>{tx.type}</td>
+                            <td>{tx.txPriceUsd}</td>
+                            <td>{tx.swapHash}</td>
+                            <td>{tx.state}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
 function App() {
     const [user, setUser] = useState(null);
-    const [bots, setBots] = useState([]);
+    const [wallets, setWallets] = useState([]);
     const [balance, setBalance] = useState(null);
+    const [selectedWalletId, setSelectedWalletId] = useState('');
 
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [botName, setBotName] = useState('');
+    const [walletName, setWalletName] = useState('');
+    const [privateKey, setPrivateKey] = useState('');
     const [tradePair, setTradePair] = useState('');
     const [tradeAmount, setTradeAmount] = useState('');
     const [tradeType, setTradeType] = useState('buy');
-    const [ethAddress, setEthAddress] = useState('');
 
     useEffect(() => {
         if (user) {
-            fetchBots();
+            fetchWallets();
         }
     }, [user]);
-
-    useEffect(() => {
-        // 防止 MutationObserver 错误
-        const observer = new MutationObserver(() => { });
-        if (document.body) {
-            observer.observe(document.body, { childList: true, subtree: true });
-        }
-        return () => observer.disconnect();
-    }, []);
 
     const register = async (e) => {
         e.preventDefault();
         try {
-            const response = await api.post('/register', { username, password });
+            const response = await api.post('/register', { username, password, botName });
             alert(response.data.message);
         } catch (error) {
-            if (error.response) {
-                // The request was made and the server responded with a status code
-                // that falls out of the range of 2xx
-                alert('Registration failed: ' + error.response.data.error);
-            } else if (error.request) {
-                // The request was made but no response was received
-                alert('No response received from server');
-            } else {
-                // Something happened in setting up the request that triggered an Error
-                alert('Error: ' + error.message);
-            }
+            alert('Registration failed: ' + (error.response?.data?.error || error.message));
         }
     };
 
@@ -61,7 +93,7 @@ function App() {
             setUser(username);
             alert(response.data.message);
         } catch (error) {
-            alert('Login failed: ' + error.response.data.error);
+            alert('Login failed: ' + (error.response?.data?.error || error.message));
         }
     };
 
@@ -69,52 +101,64 @@ function App() {
         try {
             const response = await api.post('/logout');
             setUser(null);
-            setBots([]);
+            setWallets([]);
             setBalance(null);
             alert(response.data.message);
         } catch (error) {
-            alert('Logout failed: ' + error.response.data.error);
+            alert('Logout failed: ' + (error.response?.data?.error || error.message));
         }
     };
 
-    const fetchBots = async () => {
+    const fetchWallets = async () => {
         try {
-            const response = await api.get('/bots');
-            setBots(response.data);
+            const response = await api.get('/wallets');
+            setWallets(response.data);
         } catch (error) {
-            alert('Failed to fetch bots: ' + error.response.data.error);
+            alert('Failed to fetch wallets: ' + (error.response?.data?.error || error.message));
         }
     };
 
-    const createBot = async (e) => {
+    const importWallet = async (e) => {
         e.preventDefault();
         try {
-            const response = await api.post('/bots', { name: botName, config: {} });
-            fetchBots();
-            setBotName('');
-            alert('Bot created successfully');
+            const response = await api.post('/wallets/import', { privateKey, name: walletName });
+            setWallets(response.data);
+            setPrivateKey('');
+            setWalletName('');
+            alert('Wallet imported successfully');
         } catch (error) {
-            alert('Failed to create bot: ' + error.response.data.error);
+            alert('Failed to import wallet: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
+    const deleteWallet = async (id) => {
+        try {
+            const response = await api.delete(`/wallets/${id}`);
+            setWallets(response.data);
+            alert('Wallet deleted successfully');
+        } catch (error) {
+            alert('Failed to delete wallet: ' + (error.response?.data?.error || error.message));
         }
     };
 
     const executeTrade = async (e) => {
         e.preventDefault();
         try {
-            const response = await api.post('/trade', { pair: tradePair, amount: tradeAmount, type: tradeType });
+            const response = await api.post('/trade', {
+                walletId: selectedWalletId,
+                pair: tradePair,
+                type: tradeType,
+                amountOrPercent: tradeAmount,
+                maxSlippage: 1 // You might want to make this configurable
+            });
             alert('Trade executed successfully');
+            // Refresh the transaction history after a successful trade
+            setSelectedWalletId(prevId => {
+                // This will trigger a re-render of TransactionHistory
+                return prevId;
+            });
         } catch (error) {
-            alert('Trade execution failed: ' + error.response.data.error);
-        }
-    };
-
-    const getBalance = async (e) => {
-        e.preventDefault();
-        try {
-            const response = await api.get(`/balance/${ethAddress}`);
-            setBalance(response.data.balance);
-        } catch (error) {
-            alert('Failed to fetch balance: ' + error.response.data.error);
+            alert('Trade execution failed: ' + (error.response?.data?.error || error.message));
         }
     };
 
@@ -125,6 +169,7 @@ function App() {
                 <form onSubmit={register}>
                     <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
                     <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <input type="text" placeholder="Bot Name" value={botName} onChange={(e) => setBotName(e.target.value)} />
                     <button type="submit">Register</button>
                 </form>
                 <form onSubmit={login}>
@@ -141,21 +186,31 @@ function App() {
             <h1>Welcome, {user}</h1>
             <button onClick={logout}>Logout</button>
 
-            <h2>Your Bots</h2>
+            <h2>Your Wallets</h2>
             <ul>
-                {bots.map(bot => (
-                    <li key={bot._id}>{bot.name}</li>
+                {wallets.map(wallet => (
+                    <li key={wallet.id}>
+                        {wallet.name} ({wallet.address}) - Type: {wallet.type}
+                        <button onClick={() => deleteWallet(wallet.id)}>Delete</button>
+                    </li>
                 ))}
             </ul>
 
-            <form onSubmit={createBot}>
-                <input type="text" placeholder="Bot Name" value={botName} onChange={(e) => setBotName(e.target.value)} />
-                <button type="submit">Create Bot</button>
+            <form onSubmit={importWallet}>
+                <input type="text" placeholder="Private Key" value={privateKey} onChange={(e) => setPrivateKey(e.target.value)} />
+                <input type="text" placeholder="Wallet Name" value={walletName} onChange={(e) => setWalletName(e.target.value)} />
+                <button type="submit">Import Wallet</button>
             </form>
 
             <h2>Execute Trade</h2>
             <form onSubmit={executeTrade}>
-                <input type="text" placeholder="Trade Pair" value={tradePair} onChange={(e) => setTradePair(e.target.value)} />
+                <select value={selectedWalletId} onChange={(e) => setSelectedWalletId(e.target.value)}>
+                    <option value="">Select Wallet</option>
+                    {wallets.map(wallet => (
+                        <option key={wallet.id} value={wallet.id}>{wallet.name}</option>
+                    ))}
+                </select>
+                <input type="text" placeholder="Token Address" value={tradePair} onChange={(e) => setTradePair(e.target.value)} />
                 <input type="number" placeholder="Amount" value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)} />
                 <select value={tradeType} onChange={(e) => setTradeType(e.target.value)}>
                     <option value="buy">Buy</option>
@@ -164,12 +219,7 @@ function App() {
                 <button type="submit">Execute Trade</button>
             </form>
 
-            <h2>ETH Balance</h2>
-            <form onSubmit={getBalance}>
-                <input type="text" placeholder="ETH Address" value={ethAddress} onChange={(e) => setEthAddress(e.target.value)} />
-                <button type="submit">Get Balance</button>
-            </form>
-            {balance && <p>Balance: {balance} ETH</p>}
+            {selectedWalletId && <TransactionHistory walletId={selectedWalletId} />}
         </div>
     );
 }
