@@ -165,15 +165,13 @@ function App() {
         return (
             <div>
                 <h1>People Bot</h1>
-                <form onSubmit={register}>
+                <form>
                     <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
                     <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                    <button type="submit">Register</button>
-                </form>
-                <form onSubmit={login}>
-                    <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
-                    <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                    <button type="submit">Login</button>
+                    <div>
+                        <button type="button" onClick={register}>Register</button>
+                        <button type="button" onClick={login}>Login</button>
+                    </div>
                 </form>
             </div>
         );
