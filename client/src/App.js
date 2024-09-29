@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import logo from './logo.png'; // 请确保你有一个 logo 图片文件
 
 const api = axios.create({
     baseURL: 'http://localhost:5001/api',
@@ -71,6 +73,8 @@ function App() {
     const [telegramBotToken, setTelegramBotToken] = useState('');
     const [dbotxApiKey, setDbotxApiKey] = useState('');
     const [apiKeySet, setApiKeySet] = useState(false);
+
+    const [isRegistering, setIsRegistering] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -193,89 +197,185 @@ function App() {
         }
     };
 
-    if (!user) {
-        return (
-            <div>
-                <h1>People Bot</h1>
-                <form>
-                    <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
-                    <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                    <div>
-                        <button type="button" onClick={register}>Register</button>
-                        <button type="button" onClick={login}>Login</button>
-                    </div>
-                </form>
-            </div>
-        );
-    }
-
     return (
         <div>
-            <h1>Welcome, {user}</h1>
-            <button onClick={logout}>Logout</button>
+            <nav className="navbar navbar-expand-lg navbar-light bg-light mb-4">
+                <div className="container">
+                    <a className="navbar-brand d-flex align-items-center" href="#">
+                        <img src={logo} alt="People Bot Logo" width="40" height="40" className="d-inline-block align-top me-2" />
+                        <span className="fs-4">People Bot</span>
+                    </a>
+                    {user && (
+                        <div className="navbar-nav ms-auto">
+                            <span className="nav-item nav-link">Welcome, {user}</span>
+                            <button onClick={logout} className="btn btn-outline-danger">Logout</button>
+                        </div>
+                    )}
+                </div>
+            </nav>
 
-            <h2>Set Telegram Bot Token</h2>
-            <form onSubmit={setTelegramToken}>
-                <input
-                    type="text"
-                    placeholder="Telegram Bot Token"
-                    value={telegramBotToken}
-                    onChange={(e) => setTelegramBotToken(e.target.value)}
-                />
-                <button type="submit">Set Token</button>
-            </form>
+            <div className="container mt-3">
+                {!user ? (
+                    <div className="row justify-content-center">
+                        <div className="col-md-6">
+                            <h2 className="mb-4">{isRegistering ? 'Register' : 'Login'}</h2>
+                            <form onSubmit={isRegistering ? register : login}>
+                                <div className="mb-3">
+                                    <input
+                                        type="text"
+                                        className="form-control"
+                                        placeholder="Username"
+                                        value={username}
+                                        onChange={(e) => setUsername(e.target.value)}
+                                    />
+                                </div>
+                                <div className="mb-3">
+                                    <input
+                                        type="password"
+                                        className="form-control"
+                                        placeholder="Password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                    />
+                                </div>
+                                <button type="submit" className="btn btn-primary">
+                                    {isRegistering ? 'Register' : 'Login'}
+                                </button>
+                            </form>
+                            <p className="mt-3">
+                                {isRegistering ? 'Already have an account?' : "Don't have an account?"}{' '}
+                                <button
+                                    className="btn btn-link p-0"
+                                    onClick={() => setIsRegistering(!isRegistering)}
+                                >
+                                    {isRegistering ? 'Login' : 'Register'}
+                                </button>
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <div>
+                        <div className="row mb-4">
+                            <div className="col-md-6">
+                                <h2>Set DBOTX API Key</h2>
+                                <form onSubmit={setDbotxApiKeyHandler} className="mb-3">
+                                    <div className="input-group">
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            placeholder="DBOTX API Key"
+                                            value={dbotxApiKey}
+                                            onChange={(e) => setDbotxApiKey(e.target.value)}
+                                        />
+                                        <button type="submit" className="btn btn-primary">Set API Key</button>
+                                    </div>
+                                </form>
+                            </div>
+                            <div className="col-md-6">
+                                <h2>Set Telegram Bot Token</h2>
+                                <form onSubmit={setTelegramToken} className="mb-3">
+                                    <div className="input-group">
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            placeholder="Telegram Bot Token"
+                                            value={telegramBotToken}
+                                            onChange={(e) => setTelegramBotToken(e.target.value)}
+                                        />
+                                        <button type="submit" className="btn btn-primary">Set Bot Token</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
 
-            <h2>Set DBOTX API Key</h2>
-            <form onSubmit={setDbotxApiKeyHandler}>
-                <input
-                    type="text"
-                    placeholder="DBOTX API Key"
-                    value={dbotxApiKey}
-                    onChange={(e) => setDbotxApiKey(e.target.value)}
-                />
-                <button type="submit">Set DBOTX API Key</button>
-            </form>
+                        {apiKeySet ? (
+                            <div>
+                                <h2 className="mb-3">Your Wallets</h2>
+                                <ul className="list-group mb-4">
+                                    {wallets.map(wallet => (
+                                        <li key={wallet.id} className="list-group-item d-flex justify-content-between align-items-center">
+                                            {wallet.name} ({wallet.address}) - Type: {wallet.type}
+                                            <button onClick={() => deleteWallet(wallet.id)} className="btn btn-sm btn-danger">Delete</button>
+                                        </li>
+                                    ))}
+                                </ul>
 
-            {apiKeySet ? (
-                <>
-                    <h2>Your Wallets</h2>
-                    <ul>
-                        {wallets.map(wallet => (
-                            <li key={wallet.id}>
-                                {wallet.name} ({wallet.address}) - Type: {wallet.type}
-                                <button onClick={() => deleteWallet(wallet.id)}>Delete</button>
-                            </li>
-                        ))}
-                    </ul>
-                </>
-            ) : (
-                <p>Please set your DBOTX API key to view and manage your wallets.</p>
-            )}
+                                <h2 className="mb-3">Import Wallet</h2>
+                                <form onSubmit={importWallet} className="mb-4">
+                                    <div className="mb-3">
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            placeholder="Private Key"
+                                            value={privateKey}
+                                            onChange={(e) => setPrivateKey(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="mb-3">
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            placeholder="Wallet Name"
+                                            value={walletName}
+                                            onChange={(e) => setWalletName(e.target.value)}
+                                        />
+                                    </div>
+                                    <button type="submit" className="btn btn-success">Import Wallet</button>
+                                </form>
 
-            <form onSubmit={importWallet}>
-                <input type="text" placeholder="Private Key" value={privateKey} onChange={(e) => setPrivateKey(e.target.value)} />
-                <input type="text" placeholder="Wallet Name" value={walletName} onChange={(e) => setWalletName(e.target.value)} />
-                <button type="submit">Import Wallet</button>
-            </form>
+                                <h2 className="mb-3">Execute Trade</h2>
+                                <form onSubmit={executeTrade} className="mb-4">
+                                    <div className="mb-3">
+                                        <select
+                                            className="form-select"
+                                            value={selectedWalletId}
+                                            onChange={(e) => setSelectedWalletId(e.target.value)}
+                                        >
+                                            <option value="">Select Wallet</option>
+                                            {wallets.map(wallet => (
+                                                <option key={wallet.id} value={wallet.id}>{wallet.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="mb-3">
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            placeholder="Token Address"
+                                            value={tradePair}
+                                            onChange={(e) => setTradePair(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="mb-3">
+                                        <input
+                                            type="number"
+                                            className="form-control"
+                                            placeholder="Amount"
+                                            value={tradeAmount}
+                                            onChange={(e) => setTradeAmount(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="mb-3">
+                                        <select
+                                            className="form-select"
+                                            value={tradeType}
+                                            onChange={(e) => setTradeType(e.target.value)}
+                                        >
+                                            <option value="buy">Buy</option>
+                                            <option value="sell">Sell</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" className="btn btn-primary">Execute Trade</button>
+                                </form>
 
-            <h2>Execute Trade</h2>
-            <form onSubmit={executeTrade}>
-                <select value={selectedWalletId} onChange={(e) => setSelectedWalletId(e.target.value)}>
-                    <option value="">Select Wallet</option>
-                    {wallets.map(wallet => (
-                        <option key={wallet.id} value={wallet.id}>{wallet.name}</option>
-                    ))}
-                </select>
-                <input type="text" placeholder="Token Address" value={tradePair} onChange={(e) => setTradePair(e.target.value)} />
-                <input type="number" placeholder="Amount" value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)} />
-                <select value={tradeType} onChange={(e) => setTradeType(e.target.value)}>
-                    <option value="buy">Buy</option>
-                    <option value="sell">Sell</option>
-                </select>
-                <button type="submit">Execute Trade</button>
-            </form>
-
-            {selectedWalletId && <TransactionHistory walletId={selectedWalletId} />}
+                                {selectedWalletId && <TransactionHistory walletId={selectedWalletId} />}
+                            </div>
+                        ) : (
+                            <p className="alert alert-warning">Please set your DBOTX API key to view and manage your wallets.</p>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
