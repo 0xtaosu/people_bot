@@ -69,6 +69,7 @@ function App() {
     const [tradeAmount, setTradeAmount] = useState('');
     const [tradeType, setTradeType] = useState('buy');
     const [telegramBotToken, setTelegramBotToken] = useState('');
+    const [dbotxApiKey, setDbotxApiKey] = useState('');
 
     useEffect(() => {
         if (user) {
@@ -173,6 +174,17 @@ function App() {
         }
     };
 
+    const setDbotxApiKeyHandler = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await api.post('/set-dbotx-api-key', { apiKey: dbotxApiKey });
+            alert(response.data.message);
+            setDbotxApiKey('');
+        } catch (error) {
+            alert('Failed to set DBOTX API key: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
     if (!user) {
         return (
             <div>
@@ -203,6 +215,17 @@ function App() {
                     onChange={(e) => setTelegramBotToken(e.target.value)}
                 />
                 <button type="submit">Set Token</button>
+            </form>
+
+            <h2>Set DBOTX API Key</h2>
+            <form onSubmit={setDbotxApiKeyHandler}>
+                <input
+                    type="text"
+                    placeholder="DBOTX API Key"
+                    value={dbotxApiKey}
+                    onChange={(e) => setDbotxApiKey(e.target.value)}
+                />
+                <button type="submit">Set DBOTX API Key</button>
             </form>
 
             <h2>Your Wallets</h2>

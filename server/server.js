@@ -19,6 +19,7 @@ const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     telegramBotToken: { type: String },
+    dbotxApiKey: { type: String }, // 新增字段
     wallets: [{
         id: { type: String, required: true },
         name: { type: String, required: true },
@@ -80,10 +81,14 @@ const auth = (req, res, next) => {
 };
 
 // Helper function to get wallet info from dbotx
-async function getWalletInfo() {
+async function getWalletInfo(userId) {
+    const user = await User.findById(userId);
+    if (!user || !user.dbotxApiKey) {
+        throw new Error('User not found or DBOTX API key not set');
+    }
     try {
         const response = await axios.get('https://api-bot-v1.dbotx.com/account/wallets?type=evm', {
-            headers: { 'X-API-KEY': process.env.DBOTX_API_KEY }
+            headers: { 'X-API-KEY': user.dbotxApiKey }
         });
         console.log('Wallet info response:', JSON.stringify(response.data, null, 2));
         return response.data;
@@ -96,7 +101,7 @@ async function getWalletInfo() {
 // Helper function to update user's wallets in the database
 async function updateUserWallets(userId) {
     try {
-        const walletInfo = await getWalletInfo();
+        const walletInfo = await getWalletInfo(userId);
         console.log('Wallet info in updateUserWallets:', JSON.stringify(walletInfo, null, 2));
 
         let wallets = [];
@@ -339,7 +344,7 @@ Available commands:
                 type: 'evm',
                 privateKeys: [privateKey]
             }, {
-                headers: { 'X-API-KEY': process.env.DBOTX_API_KEY }
+                headers: { 'X-API-KEY': user.dbotxApiKey }
             });
             const updatedWallets = await updateUserWallets(user._id);
             bot.sendMessage(msg.chat.id, 'Wallet imported successfully');
@@ -409,6 +414,18 @@ Available commands:
 
     userBots.set(user._id.toString(), bot);
 }
+
+app.post('/api/set-dbotx-api-key', auth, async (req, res) => {
+    try {
+        const { apiKey } = req.body;
+        const user = await User.findById(req.session.userId);
+        user.dbotxApiKey = apiKey;
+        await user.save();
+        res.send({ message: 'DBOTX API key set successfully' });
+    } catch (error) {
+        res.status(500).send({ error: 'Failed to set DBOTX API key: ' + error.message });
+    }
+});
 
 if (require.main === module) {
     app.listen(PORT, () => {

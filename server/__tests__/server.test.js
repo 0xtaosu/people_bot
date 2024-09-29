@@ -41,13 +41,22 @@ describe('Wallet Management', () => {
     let authCookie;
 
     beforeAll(async () => {
-        const res = await request(app)
+        // 登录
+        const loginRes = await request(app)
             .post('/api/login')
             .send({
                 username: 'testuser',
                 password: 'testpassword'
             });
-        authCookie = res.headers['set-cookie'];
+        authCookie = loginRes.headers['set-cookie'];
+
+        // 设置 DBOTX API key
+        await request(app)
+            .post('/api/set-dbotx-api-key')
+            .set('Cookie', authCookie)
+            .send({
+                apiKey: 'test-dbotx-api-key'
+            });
     });
 
     it('should import a wallet', async () => {
@@ -89,6 +98,17 @@ describe('Wallet Management', () => {
         expect(Array.isArray(deleteRes.body)).toBeTruthy();
         expect(deleteRes.body.find(w => w.id === walletId)).toBeUndefined();
     });
+
+    it('should set DBOTX API key', async () => {
+        const res = await request(app)
+            .post('/api/set-dbotx-api-key')
+            .set('Cookie', authCookie)
+            .send({
+                apiKey: 'new-test-dbotx-api-key'
+            });
+        expect(res.statusCode).toEqual(200);
+        expect(res.body).toHaveProperty('message', 'DBOTX API key set successfully');
+    });
 });
 
 describe('Trade Execution', () => {
@@ -96,7 +116,7 @@ describe('Trade Execution', () => {
     let walletId;
 
     beforeAll(async () => {
-        // Login
+        // 登录
         const loginRes = await request(app)
             .post('/api/login')
             .send({
@@ -105,7 +125,15 @@ describe('Trade Execution', () => {
             });
         authCookie = loginRes.headers['set-cookie'];
 
-        // Import a wallet
+        // 设置 DBOTX API key
+        await request(app)
+            .post('/api/set-dbotx-api-key')
+            .set('Cookie', authCookie)
+            .send({
+                apiKey: 'test-dbotx-api-key'
+            });
+
+        // 导入钱包
         const walletRes = await request(app)
             .post('/api/wallets/import')
             .set('Cookie', authCookie)
