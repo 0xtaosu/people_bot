@@ -83,14 +83,16 @@ const auth = (req, res, next) => {
 // Helper function to get wallet info from dbotx
 async function getWalletInfo(userId) {
     const user = await User.findById(userId);
-    if (!user || !user.dbotxApiKey) {
-        throw new Error('User not found or DBOTX API key not set');
+    if (!user) {
+        throw new Error('User not found');
+    }
+    if (!user.dbotxApiKey) {
+        return { res: [] }; // 返回空的钱包列表，而不是抛出错误
     }
     try {
         const response = await axios.get('https://api-bot-v1.dbotx.com/account/wallets?type=evm', {
             headers: { 'X-API-KEY': user.dbotxApiKey }
         });
-        console.log('Wallet info response:', JSON.stringify(response.data, null, 2));
         return response.data;
     } catch (error) {
         console.error('Error fetching wallet info:', error);
@@ -155,7 +157,8 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).send({ error: 'Login failed' });
         }
         req.session.userId = user._id;
-        res.send({ message: 'Logged in successfully' });
+        const apiKeySet = !!user.dbotxApiKey;
+        res.send({ message: 'Logged in successfully', apiKeySet });
     } catch (error) {
         res.status(400).send(error);
     }

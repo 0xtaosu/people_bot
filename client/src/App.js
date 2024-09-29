@@ -70,6 +70,7 @@ function App() {
     const [tradeType, setTradeType] = useState('buy');
     const [telegramBotToken, setTelegramBotToken] = useState('');
     const [dbotxApiKey, setDbotxApiKey] = useState('');
+    const [apiKeySet, setApiKeySet] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -92,7 +93,12 @@ function App() {
         try {
             const response = await api.post('/login', { username, password });
             setUser(username);
-            alert(response.data.message);
+            if (response.data.apiKeySet) {
+                fetchWallets();
+            } else {
+                alert('Please set your DBOTX API key before fetching wallets.');
+            }
+            setApiKeySet(response.data.apiKeySet);
         } catch (error) {
             alert('Login failed: ' + (error.response?.data?.error || error.message));
         }
@@ -180,6 +186,8 @@ function App() {
             const response = await api.post('/set-dbotx-api-key', { apiKey: dbotxApiKey });
             alert(response.data.message);
             setDbotxApiKey('');
+            setApiKeySet(true);
+            fetchWallets(); // 现在可以安全地获取钱包信息
         } catch (error) {
             alert('Failed to set DBOTX API key: ' + (error.response?.data?.error || error.message));
         }
@@ -228,15 +236,21 @@ function App() {
                 <button type="submit">Set DBOTX API Key</button>
             </form>
 
-            <h2>Your Wallets</h2>
-            <ul>
-                {wallets.map(wallet => (
-                    <li key={wallet.id}>
-                        {wallet.name} ({wallet.address}) - Type: {wallet.type}
-                        <button onClick={() => deleteWallet(wallet.id)}>Delete</button>
-                    </li>
-                ))}
-            </ul>
+            {apiKeySet ? (
+                <>
+                    <h2>Your Wallets</h2>
+                    <ul>
+                        {wallets.map(wallet => (
+                            <li key={wallet.id}>
+                                {wallet.name} ({wallet.address}) - Type: {wallet.type}
+                                <button onClick={() => deleteWallet(wallet.id)}>Delete</button>
+                            </li>
+                        ))}
+                    </ul>
+                </>
+            ) : (
+                <p>Please set your DBOTX API key to view and manage your wallets.</p>
+            )}
 
             <form onSubmit={importWallet}>
                 <input type="text" placeholder="Private Key" value={privateKey} onChange={(e) => setPrivateKey(e.target.value)} />
