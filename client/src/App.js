@@ -68,6 +68,7 @@ function App() {
     const [tradePair, setTradePair] = useState('');
     const [tradeAmount, setTradeAmount] = useState('');
     const [tradeType, setTradeType] = useState('buy');
+    const [telegramBotToken, setTelegramBotToken] = useState('');
 
     useEffect(() => {
         if (user) {
@@ -161,6 +162,17 @@ function App() {
         }
     };
 
+    const setTelegramToken = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await api.post('/set-telegram-token', { token: telegramBotToken });
+            alert(response.data.message);
+            setTelegramBotToken('');
+        } catch (error) {
+            alert('Failed to set Telegram bot token: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
     if (!user) {
         return (
             <div>
@@ -181,6 +193,17 @@ function App() {
         <div>
             <h1>Welcome, {user}</h1>
             <button onClick={logout}>Logout</button>
+
+            <h2>Set Telegram Bot Token</h2>
+            <form onSubmit={setTelegramToken}>
+                <input
+                    type="text"
+                    placeholder="Telegram Bot Token"
+                    value={telegramBotToken}
+                    onChange={(e) => setTelegramBotToken(e.target.value)}
+                />
+                <button type="submit">Set Token</button>
+            </form>
 
             <h2>Your Wallets</h2>
             <ul>

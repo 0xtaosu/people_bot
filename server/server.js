@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
 const cors = require('cors');
+const TelegramBot = require('node-telegram-bot-api');
 
 dotenv.config();
 mongoose.set('strictQuery', false);
@@ -17,6 +18,7 @@ const ALT_PORT = 5001;
 const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    telegramBotToken: { type: String },
     wallets: [{
         id: { type: String, required: true },
         name: { type: String, required: true },
@@ -275,6 +277,138 @@ app.get('/api/transactions', auth, async (req, res) => {
         res.status(500).send({ error: 'Failed to fetch transactions: ' + error.message });
     }
 });
+
+// 新增：设置 Telegram 机器人 token
+app.post('/api/set-telegram-token', auth, async (req, res) => {
+    try {
+        const { token } = req.body;
+        const user = await User.findById(req.session.userId);
+        user.telegramBotToken = token;
+        await user.save();
+
+        // 初始化用户的 Telegram 机器人
+        initUserTelegramBot(user);
+
+        res.send({ message: 'Telegram bot token set successfully' });
+    } catch (error) {
+        res.status(500).send({ error: 'Failed to set Telegram bot token: ' + error.message });
+    }
+});
+
+// Telegram 机器人逻辑
+const userBots = new Map();
+
+function initUserTelegramBot(user) {
+    if (userBots.has(user._id.toString())) {
+        userBots.get(user._id.toString()).stop();
+    }
+
+    const bot = new TelegramBot(user.telegramBotToken, { polling: true });
+
+    bot.onText(/\/start/, (msg) => {
+        bot.sendMessage(msg.chat.id, 'Welcome to your trading bot! Use /help to see available commands.');
+    });
+
+    bot.onText(/\/help/, (msg) => {
+        const helpMessage = `
+Available commands:
+/wallets - List your wallets
+/import <private_key> <name> - Import a new wallet
+/delete <wallet_id> - Delete a wallet
+/trade <wallet_id> <pair> <type> <amount> - Execute a trade
+/transactions <wallet_id> - Get transaction history
+        `;
+        bot.sendMessage(msg.chat.id, helpMessage);
+    });
+
+    bot.onText(/\/wallets/, async (msg) => {
+        try {
+            const wallets = await updateUserWallets(user._id);
+            const walletList = wallets.map(w => `${w.name} (${w.address}) - ID: ${w.id}`).join('\n');
+            bot.sendMessage(msg.chat.id, `Your wallets:\n${walletList}`);
+        } catch (error) {
+            bot.sendMessage(msg.chat.id, 'Failed to fetch wallets: ' + error.message);
+        }
+    });
+
+    bot.onText(/\/import (.+) (.+)/, async (msg, match) => {
+        try {
+            const privateKey = match[1];
+            const name = match[2];
+            await axios.post('https://api-bot-v1.dbotx.com/account/wallets', {
+                type: 'evm',
+                privateKeys: [privateKey]
+            }, {
+                headers: { 'X-API-KEY': process.env.DBOTX_API_KEY }
+            });
+            const updatedWallets = await updateUserWallets(user._id);
+            bot.sendMessage(msg.chat.id, 'Wallet imported successfully');
+        } catch (error) {
+            bot.sendMessage(msg.chat.id, 'Failed to import wallet: ' + error.message);
+        }
+    });
+
+    bot.onText(/\/delete (.+)/, async (msg, match) => {
+        try {
+            const walletId = match[1];
+            await axios.delete(`https://api-bot-v1.dbotx.com/account/wallet/${walletId}`, {
+                headers: { 'X-API-KEY': process.env.DBOTX_API_KEY }
+            });
+            const updatedWallets = await updateUserWallets(user._id);
+            bot.sendMessage(msg.chat.id, 'Wallet deleted successfully');
+        } catch (error) {
+            bot.sendMessage(msg.chat.id, 'Failed to delete wallet: ' + error.message);
+        }
+    });
+
+    bot.onText(/\/trade (.+) (.+) (.+) (.+)/, async (msg, match) => {
+        try {
+            const [walletId, pair, type, amountOrPercent] = match.slice(1);
+            const response = await axios.post('https://api-bot-v1.dbotx.com/automation/swap_order', {
+                chain: 'ethereum',
+                walletId,
+                pair,
+                type,
+                amountOrPercent,
+                maxSlippage: 1
+            }, {
+                headers: { 'X-API-KEY': process.env.DBOTX_API_KEY }
+            });
+
+            if (response.data.err === false && response.data.res && response.data.res.id) {
+                const tradeId = response.data.res.id;
+                const transaction = new Transaction({
+                    walletId,
+                    pair,
+                    type,
+                    tradeId
+                });
+                await transaction.save();
+                await updateTransactionDetails(tradeId);
+                bot.sendMessage(msg.chat.id, `Trade executed successfully. Trade ID: ${tradeId}`);
+            } else {
+                throw new Error('Trade execution failed');
+            }
+        } catch (error) {
+            bot.sendMessage(msg.chat.id, 'Trade execution failed: ' + error.message);
+        }
+    });
+
+    bot.onText(/\/transactions (.+)/, async (msg, match) => {
+        try {
+            const walletId = match[1];
+            const transactions = await Transaction.find({ walletId });
+            const transactionList = transactions.map(t =>
+                `ID: ${t.tradeId}, Pair: ${t.pair}, Type: ${t.type}, State: ${t.state}`
+            ).join('\n');
+            bot.sendMessage(msg.chat.id, `Transactions for wallet ${walletId}:\n${transactionList}`);
+        } catch (error) {
+            bot.sendMessage(msg.chat.id, 'Failed to fetch transactions: ' + error.message);
+        }
+    });
+
+    userBots.set(user._id.toString(), bot);
+}
 
 if (require.main === module) {
     app.listen(PORT, () => {
